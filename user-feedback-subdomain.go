@@ -56,7 +56,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println("I am in IndexHandler")
-	fmt.Fprint(w, "Hello, World!")
+	fmt.Fprint(w, "Hello, World Again!")
 }
 
 // [END indexHandler]
