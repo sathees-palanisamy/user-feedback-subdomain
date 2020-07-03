@@ -1,35 +1,40 @@
-// Copyright 2019 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// [START gae_go111_app]
-
-// Sample helloworld is an App Engine app.
 package main
 
-// [START import]
 import (
+
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/gorilla/mux"
+
 )
 
-// [END import]
-// [START main_func]
+type SuggestionRequest struct {
+	Id     string `json:"id"`
+	Email  string `json:"email"`
+	Detail string `json:"detail"`
+	Date   string `json:"date"`
+}
+
+type SuggestionResponse struct {
+	Id     string `json:"id"`
+	Email  string `json:"email"`
+	Detail string `json:"detail"`
+	Date   string `json:"date"`
+}
+
+type Error struct {
+	Message string `json:"message"`
+}
 
 func main() {
-	http.HandleFunc("/", indexHandler)
+
+	router := mux.NewRouter()
+
+	router.HandleFunc("/v1/feedback/createFeedback", insertHandler).Methods("POST")
 
 	// [START setting_port]
 	port := os.Getenv("PORT")
@@ -39,25 +44,41 @@ func main() {
 	}
 
 	log.Printf("Listening on port %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, router); err != nil {
 		log.Fatal(err)
 	}
 	// [END setting_port]
+
 }
 
-// [END main_func]
+func insertHandler(w http.ResponseWriter, r *http.Request) {
 
-// [START indexHandler]
+	fmt.Println("I am in Insert Handler")
 
-// indexHandler responds to requests with our greeting.
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	fmt.Println("I am in IndexHandler")
-	fmt.Fprint(w, "Hello, World Again!")
+	var indiSuggestReg SuggestionRequest
+    var indiSuggestRes SuggestionResponse
+    var error Error
+
+    err := json.NewDecoder(r.Body).Decode(&indiSuggestReg)
+
+    if err != nil {
+        error.Message = "Bad data"
+        responseWithError(w, http.StatusBadRequest, error)
+        return
+    }
+
+    indiSuggestRes.Email = indiSuggestReg.Email
+    indiSuggestRes.Detail = indiSuggestReg.Detail
+    indiSuggestRes.Date = indiSuggestRes.Date
+    indiSuggestRes.Id = "1"
+
+    w.Header().Set("content-type", "application/json")
+
+    json.NewEncoder(w).Encode(indiSuggestRes)
 }
 
-// [END indexHandler]
-// [END gae_go111_app]
+
+func responseWithError(w http.ResponseWriter, status int, error Error) {
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(error)
+}
