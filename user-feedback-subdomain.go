@@ -1,7 +1,7 @@
 package main
 
 import (
-
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/gorilla/mux"
-
+	"github.com/lib/pq"
 )
 
 type SuggestionRequest struct {
@@ -30,13 +30,29 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+var db *sql.DB
+
 func main() {
+
+	// driver - Folder
+	pgUrl, err := pq.ParseURL("postgres://??")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	db, err = sql.Open("postgres", pgUrl)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// routes - Folder
 
 	router := mux.NewRouter()
 
 	router.HandleFunc("/v1/feedback/createFeedback", insertHandler).Methods("POST")
 
-	// [START setting_port]
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -47,38 +63,58 @@ func main() {
 	if err := http.ListenAndServe(":"+port, router); err != nil {
 		log.Fatal(err)
 	}
-	// [END setting_port]
 
 }
 
 func insertHandler(w http.ResponseWriter, r *http.Request) {
 
+	// Controller - Folder
+
 	fmt.Println("I am in Insert Handler")
 
 	var indiSuggestReg SuggestionRequest
-    var indiSuggestRes SuggestionResponse
-    var error Error
+	var indiSuggestRes SuggestionResponse
+	var error Error
 
-    err := json.NewDecoder(r.Body).Decode(&indiSuggestReg)
+	fmt.Println("indiSuggestReg:", indiSuggestReg)
+	fmt.Println("r.Body:", r.Body)
 
-    if err != nil {
-        error.Message = "Bad data"
-        responseWithError(w, http.StatusBadRequest, error)
-        return
-    }
+	err := json.NewDecoder(r.Body).Decode(&indiSuggestReg)
 
-    indiSuggestRes.Email = indiSuggestReg.Email
-    indiSuggestRes.Detail = indiSuggestReg.Detail
-    indiSuggestRes.Date = indiSuggestRes.Date
-    indiSuggestRes.Id = "1"
+	if err != nil {
+		error.Message = "Bad data"
+		responseWithError(w, http.StatusBadRequest, error)
+		return
+	}
 
-    w.Header().Set("content-type", "application/json")
+	if indiSuggestReg.Email == "" {
+		error.Message = "Email ID should not be empty"
+		responseWithError(w, http.StatusBadRequest, error)
+		return
+	}
 
-    json.NewEncoder(w).Encode(indiSuggestRes)
+	// services & Domain - folder
+	fmt.Println("indiSuggestReg:", indiSuggestReg)
+
+	queryDet := "insert into userfeedback (email, detail, date) values($1, $2, $3) RETURNING id;"
+
+	err1 := db.QueryRow(queryDet, indiSuggestReg.Email, indiSuggestReg.Detail, indiSuggestReg.Date).Scan(&indiSuggestRes.Id)
+
+	if err1 != nil {
+		log.Fatal(err1)
+	}
+
+	indiSuggestRes.Email = indiSuggestReg.Email
+	indiSuggestRes.Detail = indiSuggestReg.Detail
+	indiSuggestRes.Date = indiSuggestRes.Date
+	//	indiSuggestRes.Id = "1"
+
+	w.Header().Set("content-type", "application/json")
+
+	json.NewEncoder(w).Encode(indiSuggestRes)
 }
 
-
 func responseWithError(w http.ResponseWriter, status int, error Error) {
-    w.WriteHeader(status)
-    json.NewEncoder(w).Encode(error)
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(error)
 }
