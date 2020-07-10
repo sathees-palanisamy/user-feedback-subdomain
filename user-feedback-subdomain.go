@@ -106,7 +106,7 @@ func insertHandler(w http.ResponseWriter, r *http.Request) {
 
 	indiSuggestRes.Email = indiSuggestReg.Email
 	indiSuggestRes.Detail = indiSuggestReg.Detail
-	indiSuggestRes.Date = indiSuggestRes.Date
+	indiSuggestRes.Date = indiSuggestReg.Date
 	//	indiSuggestRes.Id = "1"
 
 	w.Header().Set("content-type", "application/json")
