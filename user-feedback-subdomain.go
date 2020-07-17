@@ -35,7 +35,7 @@ var db *sql.DB
 func main() {
 
 	// driver - Folder
-	pgUrl, err := pq.ParseURL("postgres://??")
+	pgUrl, err := pq.ParseURL("postgres://")
 
 	if err != nil {
 		log.Fatal(err)
@@ -52,6 +52,8 @@ func main() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/v1/feedback/createFeedback", insertHandler).Methods("POST")
+	router.HandleFunc("/v1/feedback/deleteFeedback", deleteHandler).Methods("POST")
+	router.HandleFunc("/v1/feedback/listFeedback", selectHandler).Methods("get")
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -112,6 +114,113 @@ func insertHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 
 	json.NewEncoder(w).Encode(indiSuggestRes)
+}
+
+func deleteHandler(w http.ResponseWriter, r *http.Request) {
+
+	// Controller - Folder
+
+	fmt.Println("I am in Delete Handler")
+
+	var indiSuggestReg SuggestionRequest
+	var indiSuggestRes SuggestionResponse
+	var error Error
+
+	fmt.Println("indiSuggestReg:", indiSuggestReg)
+	fmt.Println("r.Body:", r.Body)
+
+	err := json.NewDecoder(r.Body).Decode(&indiSuggestReg)
+
+	if err != nil {
+		error.Message = "Bad data"
+		responseWithError(w, http.StatusBadRequest, error)
+		return
+	}
+
+	if indiSuggestReg.Id == "" {
+		error.Message = "ID should not be empty"
+		responseWithError(w, http.StatusBadRequest, error)
+		return
+	}
+
+	// services & Domain - folder
+	fmt.Println("indiSuggestReg:", indiSuggestReg)
+
+	row := db.QueryRow("select * from userfeedback where id=$1", indiSuggestReg.Id)
+
+	err = row.Scan(&indiSuggestRes.Id, &indiSuggestRes.Email, &indiSuggestRes.Detail, &indiSuggestRes.Date)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			error.Message = "User does not exist"
+			responseWithError(w, http.StatusBadRequest, error)
+			return
+		} else {
+			log.Fatal(err)
+			error.Message = "Server error"
+			responseWithError(w, http.StatusInternalServerError, error)
+			return
+		}
+
+	}
+
+	stmt := "delete from userfeedback where id=$1;"
+
+	res, err := db.Exec(stmt, indiSuggestReg.Id)
+
+	if err != nil {
+		error.Message = "Server error"
+		responseWithError(w, http.StatusInternalServerError, error)
+		return
+	}
+
+	fmt.Println("res:", res)
+	fmt.Println("err:", err)
+
+	w.Header().Set("content-type", "application/json")
+
+	json.NewEncoder(w).Encode(indiSuggestRes)
+}
+
+func selectHandler(w http.ResponseWriter, r *http.Request) {
+
+	var feedbackList []SuggestionResponse
+	var error Error
+
+	rows, err := db.Query("select * from userfeedback")
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var feedbackResponse SuggestionResponse
+
+		if err := rows.Scan(&feedbackResponse.Id, &feedbackResponse.Email, &feedbackResponse.Detail, &feedbackResponse.Date); err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Println("feedbackResponse:", feedbackResponse)
+
+		feedbackList = append(feedbackList, feedbackResponse)
+	}
+
+	err = rows.Err()
+
+	if err != nil {
+		error.Message = "Server error"
+		responseWithError(w, http.StatusInternalServerError, error)
+		return
+	}
+
+	fmt.Println("feedbackList:", feedbackList)
+
+	w.Header().Set("content-type", "application/json")
+
+	json.NewEncoder(w).Encode(feedbackList)
+
 }
 
 func responseWithError(w http.ResponseWriter, status int, error Error) {
