@@ -35,7 +35,7 @@ var db *sql.DB
 func main() {
 
 	// driver - Folder
-	pgUrl, err := pq.ParseURL("postgres://xsswjxse:lnGml1jOsTDYha2yjV0o3UZz1GJnK0Ie@rogue.db.elephantsql.com:5432/xsswjxse")
+	pgUrl, err := pq.ParseURL("postgres:")
 
 	if err != nil {
 		log.Fatal(err)
@@ -53,7 +53,7 @@ func main() {
 
 	router.HandleFunc("/v1/feedback/createFeedback", insertHandler).Methods("POST")
 	router.HandleFunc("/v1/feedback/deleteFeedback", deleteHandler).Methods("POST")
-	router.HandleFunc("/v1/feedback/listFeedback", selectHandler).Methods("GET")
+	router.HandleFunc("/v1/feedback/listFeedback", selectHandler).Methods("POST")
 
 	port := os.Getenv("PORT")
 	if port == "" {
