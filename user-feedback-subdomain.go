@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/lib/pq"
 )
@@ -35,7 +37,7 @@ var db *sql.DB
 func main() {
 
 	// driver - Folder
-	pgUrl, err := pq.ParseURL("postgres:")
+	pgUrl, err := pq.ParseURL("postgres://xsswjxse:lnGml1jOsTDYha2yjV0o3UZz1GJnK0Ie@rogue.db.elephantsql.com:5432/xsswjxse")
 
 	if err != nil {
 		log.Fatal(err)
@@ -51,13 +53,13 @@ func main() {
 
 	router := mux.NewRouter()
 
-	router.HandleFunc("/v1/feedback/createFeedback", insertHandler).Methods("POST")
-	router.HandleFunc("/v1/feedback/deleteFeedback", deleteHandler).Methods("POST")
-	router.HandleFunc("/v1/feedback/listFeedback", selectHandler).Methods("POST")
+	router.HandleFunc("/v1/feedback/createFeedback", AuthMiddleWare(insertHandler)).Methods("POST")
+	router.HandleFunc("/v1/feedback/deleteFeedback", AuthMiddleWare(deleteHandler)).Methods("POST")
+	router.HandleFunc("/v1/feedback/listFeedback", AuthMiddleWare(selectHandler)).Methods("GET")
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8000"
 		log.Printf("Defaulting to port %s", port)
 	}
 
@@ -72,6 +74,7 @@ func insertHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Controller - Folder
 
+	fmt.Println("***********************")
 	fmt.Println("I am in Insert Handler")
 
 	var indiSuggestReg SuggestionRequest
@@ -120,6 +123,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Controller - Folder
 
+	fmt.Println("***********************")
 	fmt.Println("I am in Delete Handler")
 
 	var indiSuggestReg SuggestionRequest
@@ -184,6 +188,9 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 
 func selectHandler(w http.ResponseWriter, r *http.Request) {
 
+	fmt.Println("***********************")
+	fmt.Println("I am in Select Handler")
+
 	var feedbackList []SuggestionResponse
 	var error Error
 
@@ -224,6 +231,77 @@ func selectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func responseWithError(w http.ResponseWriter, status int, error Error) {
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(error)
+}
+
+func AuthMiddleWare(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		fmt.Println("I am in Auth MiddleWare")
+
+		/* Basic Auth
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Basic ") {
+			log.Print("Invalid authorization:", auth)
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
+
+		up, _ := base64.StdEncoding.DecodeString(auth[6:])
+		fmt.Println("up:", string(up))
+
+		if string(up) != "123456:usrpass2" {
+			log.Print("invalid username:password:", string(up))
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
+
+		*/
+
+		/* JWT Validation */
+		var errorObject Error
+		authHeader := r.Header.Get("Authorization")
+		bearerToken := strings.Split(authHeader, " ")
+
+		fmt.Println("bearerToken:", bearerToken)
+
+		if len(bearerToken) == 2 {
+			authToken := bearerToken[1]
+
+			token, error := jwt.Parse(authToken, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("There was an error")
+				}
+
+				return []byte("mysecrets"), nil
+			})
+
+			fmt.Println("error:", error)
+			if error != nil {
+				errorObject.Message = error.Error()
+				RespondWithError(w, http.StatusUnauthorized, errorObject)
+				return
+			}
+
+			fmt.Println("token:", token)
+			if token.Valid {
+				next.ServeHTTP(w, r)
+			} else {
+				errorObject.Message = error.Error()
+				RespondWithError(w, http.StatusUnauthorized, errorObject)
+				return
+			}
+		} else {
+			errorObject.Message = "Invalid token."
+			RespondWithError(w, http.StatusUnauthorized, errorObject)
+			return
+		}
+
+	})
+}
+
+func RespondWithError(w http.ResponseWriter, status int, error Error) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(error)
 }
