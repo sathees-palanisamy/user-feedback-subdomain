@@ -1,4 +1,4 @@
-module github.com/satheesdharsan/user-feedback-subdomain
+module user-feedback-subdomain
 
 go 1.14
 

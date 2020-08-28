@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -32,7 +35,11 @@ type Error struct {
 	Message string `json:"message"`
 }
 
-var db *sql.DB
+var (
+	db            *sql.DB
+	initialVector = "1010101010101010"
+	passphrase    = []byte{0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31}
+)
 
 func main() {
 
@@ -101,9 +108,14 @@ func insertHandler(w http.ResponseWriter, r *http.Request) {
 	// services & Domain - folder
 	fmt.Println("indiSuggestReg:", indiSuggestReg)
 
+	encryptedData, _ := base64.StdEncoding.DecodeString(indiSuggestReg.Detail)
+	fmt.Println("encryptedData:", encryptedData)
+	decryptedText := AESDecrypt(encryptedData, []byte(passphrase))
+	fmt.Println("decryptedText:", decryptedText)
+
 	queryDet := "insert into userfeedback (email, detail, date) values($1, $2, $3) RETURNING id;"
 
-	err1 := db.QueryRow(queryDet, indiSuggestReg.Email, indiSuggestReg.Detail, indiSuggestReg.Date).Scan(&indiSuggestRes.Id)
+	err1 := db.QueryRow(queryDet, indiSuggestReg.Email, decryptedText, indiSuggestReg.Date).Scan(&indiSuggestRes.Id)
 
 	if err1 != nil {
 		log.Fatal(err1)
@@ -304,4 +316,23 @@ func AuthMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 func RespondWithError(w http.ResponseWriter, status int, error Error) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(error)
+}
+
+func AESDecrypt(crypt []byte, key []byte) []byte {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		fmt.Println("key error1", err)
+	}
+	if len(crypt) == 0 {
+		fmt.Println("plain content empty")
+	}
+	ecb := cipher.NewCBCDecrypter(block, []byte(initialVector))
+	decrypted := make([]byte, len(crypt))
+	ecb.CryptBlocks(decrypted, crypt)
+	return PKCS5Trimming(decrypted)
+}
+
+func PKCS5Trimming(encrypt []byte) []byte {
+	padding := encrypt[len(encrypt)-1]
+	return encrypt[:len(encrypt)-int(padding)]
 }
